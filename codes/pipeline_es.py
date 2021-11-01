@@ -28,175 +28,23 @@ from tensorflow.keras.models import Model, save_model
 from scikit_learn.sklearn_svdd.svm import SVDD
 
 
-def foldValidation(folds):
-    kf = KFold(n_splits=folds, shuffle=True, random_state=42)
-    return kf
+def train_test_split_pipeline(df_int, percent, column, f1):
+    if percent == 3 or percent == 5 or percent == 7:
+        df_test = np.array(df_int[df_int.fold != f1][column].to_list())
+        df_fold = np.array(df_int[df_int.fold == f1][column].to_list())
+        train_percent = percent / 10
+        test_percent = 1 - train_percent
+        df_train, discard = train_test_split(df_fold, test_size=test_percent, random_state=42)
 
+    else:  # percent 10
+        df_train = np.array(df_int[df_int.fold == f1][column].to_list())
+        df_test = np.array(df_int[df_int.fold != f1][column].to_list())
 
-def interest_outlier(df, is_Bug=False, class_interest='', class_outlier=''):
-    if is_Bug:
-
-        df_interest = df[df.category == class_interest]
-
-        df_outlier = df[(df.category != class_interest) & (df.is_test == 1)]
-    else:
-
-        df_interest = df[df.category != class_outlier]
-
-        df_outlier = df[(df.category == class_outlier) & (df.is_test == 1)]
-
-    return df_interest, df_outlier
-
-
-def train_test_split_one_class(kf, df_int, column, percent):
-    train_test = []
-
-    for train_index, test_index in kf.split(df_int):
-
-        df_train = np.array(df_int[column].to_list())[train_index]
-        df_test = np.array(df_int[column].to_list())[test_index]
-
-        if percent != 1:
-            df_train, _ = train_test_split(df_train, train_size=percent, random_state=42)
-
-        train_test.append((df_train, df_test))
-
-        del df_train
-        del df_test
-        collect()
-
-    return train_test
-
-
-def make_representation(train_test, df_outlier, representation_type, vectorizer='', cluster_list='',
-                        parameter_list_AE='', parameter_list_VAE='', parameter_list_MAE='', parameter_list_MVAE=''):
-    representations = list()
-    fold = 1
-
-    for df_train, df_test in train_test:
-
-        if representation_type == 'Maalej' or representation_type == 'DBERTML':
-
-            representations.append((np.array(df_train), np.array(df_test), np.array(df_outlier)))
-
-        elif representation_type == 'FastText':
-            length = len(df_train[0]) - 300
-            X_train = np.array(df_train[:, length:])
-            X_test = np.array(df_test[:, length:])
-            X_outlier = np.array(df_outlier[:, length:])
-
-            representations.append((X_train, X_test, X_outlier))
-
-        elif representation_type == 'BoW':
-
-            vectorizer.fit(df_train)
-            X_train = vectorizer.transform(df_train)
-            X_test = vectorizer.transform(df_test)
-            X_outlier = vectorizer.transform(df_outlier)
-
-            representations.append((X_train.toarray(), X_test.toarray(), X_outlier.toarray()))
-
-        elif representation_type == 'Density':
-
-            X_train, X_test, X_outlier = make_density_information(cluster_list, df_train, df_test, np.array(df_outlier))
-
-            representations.append((X_train, X_test, X_outlier))
-
-        elif representation_type == 'AE':
-
-            epoch = parameter_list_AE[0]
-            arq = parameter_list_AE[1]
-            model_file_name = parameter_list_AE[2] + '_Fold' + str(fold)
-            path_model = parameter_list_AE[3]
-
-            ae, encoder = autoencoder(arq, len(df_train[0]))
-
-            ae.fit(df_train, df_train, epochs=epoch, batch_size=32, verbose=0)
-
-            save_model(ae, path_model + model_file_name + '_autoencoder')
-            save_model(encoder, path_model + model_file_name + '_encoder_AE')
-
-            X_train = encoder.predict(np.array(df_train))
-            X_test = encoder.predict(np.array(df_test))
-            X_outlier = encoder.predict(np.array(df_outlier))
-
-            representations.append((X_train, X_test, X_outlier))
-
-        elif representation_type == 'VAE':
-
-            epoch = parameter_list_VAE[0]
-            arq = parameter_list_VAE[1]
-            model_file_name = parameter_list_VAE[2] + '_Fold' + str(fold)
-            path_model = parameter_list_VAE[3]
-
-            vae, encoder, decoder = VariationalAutoencoder(arq, len(df_train[0]))
-
-            vae.fit(df_train, df_train, epochs=epoch, batch_size=32, verbose=0)
-
-            save_model(encoder, path_model + model_file_name + '_encoder_VAE')
-            save_model(decoder, path_model + model_file_name + '_decoder_VAE')
-
-            X_train, _, _ = encoder.predict(np.array(df_train))
-            X_test, _, _ = encoder.predict(np.array(df_test))
-            X_outlier, _, _ = encoder.predict(np.array(df_outlier))
-
-            representations.append((X_train, X_test, X_outlier))
-
-        elif representation_type == 'MAE':
-
-            epoch = parameter_list_MAE[0]
-            arq = parameter_list_MAE[1]
-            model_file_name = parameter_list_MAE[2] + '_Fold' + str(fold)
-            path_model = parameter_list_MAE[3]
-            operator = parameter_list_MAE[4]
-
-            denisty_train, density_test, density_outlier = make_density_information(cluster_list, df_train, df_test,
-                                                                                    np.array(df_outlier))
-
-            aem, encoder = multimodal_autoencoder(arq, len(df_train[0]), len(cluster_list), operator)
-
-            aem.fit([df_train, denisty_train], [df_train, denisty_train], epochs=epoch, batch_size=32, verbose=0)
-
-            save_model(aem, path_model + model_file_name + '_mae')
-            save_model(encoder, path_model + model_file_name + '_encoder_MAE')
-
-            X_train = encoder.predict([np.array(df_train), denisty_train])
-            X_test = encoder.predict([np.array(df_test), density_test])
-            X_outlier = encoder.predict([np.array(df_outlier), density_outlier])
-
-            representations.append((X_train, X_test, X_outlier))
-
-        elif representation_type == 'MVAE':
-
-            epoch = parameter_list_MVAE[0]
-            arq = parameter_list_MVAE[1]
-            model_file_name = parameter_list_MVAE[2] + '_Fold' + str(fold)
-            path_model = parameter_list_MVAE[3]
-            operator = parameter_list_MVAE[4]
-
-            denisty_train, density_test, density_outlier = make_density_information(cluster_list, df_train, df_test,
-                                                                                    np.array(df_outlier))
-
-            mvae, encoder, decoder = MultimodalVAE(arq, len(df_train[0]), len(cluster_list), operator)
-
-            mvae.fit([df_train, denisty_train], [df_train, denisty_train], epochs=epoch, batch_size=32, verbose=0)
-
-            save_model(encoder, path_model + model_file_name + '_encoder_MVAE')
-            save_model(decoder, path_model + model_file_name + '_decoder_MVAE')
-
-            X_train, _, _ = encoder.predict([np.array(df_train), denisty_train])
-            X_test, _, _ = encoder.predict([np.array(df_test), density_test])
-            X_outlier, _, _ = encoder.predict([np.array(df_outlier), density_outlier])
-
-            representations.append((X_train, X_test, X_outlier))
-
-        fold += 1
-
-    return representations
+    return df_train, df_test
 
 
 def init_metrics():
-    metrics = {
+    return {
         'precision': [],
         'recall': [],
         'f1-score': [],
@@ -204,12 +52,11 @@ def init_metrics():
         'accuracy': [],
         'time': []
     }
-    return metrics
 
 
-def save_values(metricas, values):
-    for key in metricas.keys():
-        metricas[key].append(values[key])
+def save_values(metrics, values):
+    for key in metrics.keys():
+        metrics[key].append(values[key])
 
 
 def evaluation_one_class(preds_interest, preds_outliers):
@@ -217,40 +64,36 @@ def evaluation_one_class(preds_interest, preds_outliers):
     y_pred = list(preds_interest) + list(preds_outliers)
     return classification_report(y_true, y_pred, output_dict=True)
 
-def evaluate_model(X_train, X_test, X_outlier, model):
 
-    one_class_classifier = model.fit(X_train)
+def evaluate_model(x_train, x_test, x_outlier, model):
+    one_class_classifier = model.fit(x_train)
 
-    Y_pred_interest = one_class_classifier.predict(X_test)
+    y_pred_interest = one_class_classifier.predict(x_test)
 
-    Y_pred_ruido = one_class_classifier.predict(X_outlier)
+    y_pred_outlier = one_class_classifier.predict(x_outlier)
 
-    score_interest = one_class_classifier.decision_function(X_test)
+    score_interest = one_class_classifier.decision_function(x_test)
 
-    score_outlier = one_class_classifier.decision_function(X_outlier)
+    score_outlier = one_class_classifier.decision_function(x_outlier)
 
-    y_true = np.array([1] * len(X_test) + [-1] * len(X_outlier))
+    y_true = np.array([1] * len(x_test) + [-1] * len(x_outlier))
 
-    fpr, tpr, treshold = roc_curve(y_true, np.concatenate([score_interest, score_outlier]))
+    fpr, tpr, _ = roc_curve(y_true, np.concatenate([score_interest, score_outlier]))
 
-    dic = evaluation_one_class(Y_pred_interest, Y_pred_ruido)
+    dic = evaluation_one_class(y_pred_interest, y_pred_outlier)
 
-    metrics = {}
-    metrics['precision'] = dic['1']['precision']
-    metrics['recall'] = dic['1']['recall']
-    metrics['f1-score'] = dic['1']['f1-score']
-    metrics['auc_roc'] = roc_auc_score(y_true, np.concatenate([score_interest, score_outlier]))
-    metrics['accuracy'] = dic['accuracy']
+    metrics = {'precision': dic['1']['precision'], 'recall': dic['1']['recall'], 'f1-score': dic['1']['f1-score'],
+               'auc_roc': roc_auc_score(y_true, np.concatenate([score_interest, score_outlier])),
+               'accuracy': dic['accuracy']}
 
     return metrics, fpr, tpr
 
 
-def evaluate_models(models, representations, file_name, line_parameters, path):
-
+def evaluate_models(models, representations, file_name, line_parameters, path, percent):
     for model in tqdm(models):
 
         lp = model + '_' + line_parameters
-        fn = file_name + '_' + model.split('_')[0] + '.csv'
+        fn = file_name + '_' + model.split('_')[0] + '_' + str(percent) + '.csv'
         metrics = init_metrics()
 
         for reps in representations:
@@ -261,7 +104,6 @@ def evaluate_models(models, representations, file_name, line_parameters, path):
             values['time'] = time_
 
             save_values(metrics, values)
-
         write_results(metrics, fn, lp, path)
 
 
@@ -288,8 +130,28 @@ def write_results(metrics, file_name, line_parameters, path):
     file_.close()
 
 
-def hasNumbers(inputString):
-    return any(char.isdigit() for char in inputString)
+def make_density_information(cluster_list, df_train, df_test, df_outlier):
+    l_x_train = []
+    l_x_test = []
+    l_x_outlier = []
+
+    for cluster in cluster_list:
+        kmeans = KMeans(n_clusters=cluster, random_state=0).fit(df_train)
+
+        x_train_temp = silhouette_samples(df_train, kmeans.labels_).reshape(len(df_train), 1)
+        l_x_train.append(x_train_temp)
+
+        x_test_temp = silhouette_samples(df_test, kmeans.predict(df_test)).reshape(len(df_test), 1)
+        l_x_test.append(x_test_temp)
+
+        x_outlier_temp = silhouette_samples(df_outlier, kmeans.predict(df_outlier)).reshape(len(df_outlier), 1)
+        l_x_outlier.append(x_outlier_temp)
+
+    return np.concatenate(l_x_train, axis=1), np.concatenate(l_x_test, axis=1), np.concatenate(l_x_outlier, axis=1)
+
+
+def has_numbers(input_string):
+    return any(char.isdigit() for char in input_string)
 
 
 class MyTokenizer:
@@ -299,59 +161,28 @@ class MyTokenizer:
             self.STOPWORDS = nltk.corpus.stopwords.words('english')
             self.stemmer = nltk.stem.SnowballStemmer('english')
 
-        if language == 'italian':
-            self.STOPWORDS = nltk.corpus.stopwords.words('italian')
-            self.stemmer = nltk.stem.SnowballStemmer('italian')
+        if language == 'spanish':
+            self.STOPWORDS = nltk.corpus.stopwords.words('spanish')
+            self.stemmer = nltk.stem.SnowballStemmer('spanish')
+
+        if language == 'portuguese':
+            self.STOPWORDS = nltk.corpus.stopwords.words('portuguese')
+            self.stemmer = nltk.stem.SnowballStemmer('portuguese')
 
         if language == 'multilingual':
-            self.STOPWORDS = set(nltk.corpus.stopwords.words('italian')).union(
-                set(nltk.corpus.stopwords.words('english')))
+            self.STOPWORDS = set(nltk.corpus.stopwords.words('spanish')).union(
+                set(nltk.corpus.stopwords.words('portuguese'))).union(set(nltk.corpus.stopwords.words('english')))
             self.stemmer = nltk.stem.SnowballStemmer('english')
 
     def __call__(self, doc):
-        L1 = [t for t in word_tokenize(doc)]
-        L2 = []
-        for token in L1:
-            if token not in self.STOPWORDS and token.isnumeric() is False and len(token) > 2 and hasNumbers(
+        l1 = [t for t in word_tokenize(doc)]
+        l2 = []
+        for token in l1:
+            if token not in self.STOPWORDS and token.isnumeric() is False and len(token) > 2 and has_numbers(
                     token) is False:
-                L2.append(token)
-        L3 = [self.stemmer.stem(self.wnl.lemmatize(t)) for t in L2]
-        return L3
-
-
-def term_weight_type(bow_type, language_tokenizer='multilingual'):
-
-    if bow_type == 'term-frequency-IDF':
-        vectorizer = TfidfVectorizer(strip_accents='ascii', stop_words='english', ngram_range=(1, 1), min_df=1,
-                                     tokenizer=MyTokenizer(language_tokenizer))
-    elif bow_type == 'binary':
-        vectorizer = CountVectorizer(strip_accents='ascii', stop_words='english', ngram_range=(1, 1), min_df=1,
-                                     tokenizer=MyTokenizer(language_tokenizer), binary=True)
-    else:
-        vectorizer = CountVectorizer(strip_accents='ascii', stop_words='english', ngram_range=(1, 1), min_df=1,
-                                     tokenizer=MyTokenizer(language_tokenizer))
-
-    return vectorizer
-
-
-def make_density_information(cluster_list, df_train, df_test, df_outlier):
-    L_X_train = []
-    L_X_test = []
-    L_X_outlier = []
-
-    for cluster in cluster_list:
-        kmeans = KMeans(n_clusters=cluster, random_state=0).fit(df_train)
-
-        X_train_temp = silhouette_samples(df_train, kmeans.labels_).reshape(len(df_train), 1)
-        L_X_train.append(X_train_temp)
-
-        X_test_temp = silhouette_samples(df_test, kmeans.predict(df_test)).reshape(len(df_test), 1)
-        L_X_test.append(X_test_temp)
-
-        X_outlier_temp = silhouette_samples(df_outlier, kmeans.predict(df_outlier)).reshape(len(df_outlier), 1)
-        L_X_outlier.append(X_outlier_temp)
-
-    return np.concatenate(L_X_train, axis=1), np.concatenate(L_X_test, axis=1), np.concatenate(L_X_outlier, axis=1)
+                l2.append(token)
+        l3 = [self.stemmer.stem(self.wnl.lemmatize(t)) for t in l2]
+        return l3
 
 
 def autoencoder(arq, input_length):
@@ -379,18 +210,18 @@ def autoencoder(arq, input_length):
 
         decoder_output = Dense(input_length, activation="linear")(first_dense_decoder)
 
-    elif len(arq) == 1:
+    else:  # len(arq) == 1
         encoded = Dense(arq[0], activation="linear")(encoder_inputs)
 
         decoder_output = Dense(input_length, activation="linear")(encoded)
 
     encoder = Model(encoder_inputs, encoded)
 
-    autoencoder = Model(encoder_inputs, decoder_output)
+    autoencoder_model = Model(encoder_inputs, decoder_output)
 
-    autoencoder.compile(optimizer=tensorflow.keras.optimizers.Adam(), loss='mse')
+    autoencoder_model.compile(optimizer=tensorflow.keras.optimizers.Adam(), loss='mse')
 
-    return autoencoder, encoder
+    return autoencoder_model, encoder
 
 
 class Sampling(layers.Layer):
@@ -400,7 +231,7 @@ class Sampling(layers.Layer):
         z_mean, z_log_var = inputs
         batch = tf.shape(z_mean)[0]
         dim = tf.shape(z_mean)[1]
-        epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
+        epsilon = tf.keras.backend.random_normal(shape=(batch, dim), seed=1)
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
 
@@ -426,17 +257,17 @@ class VAE(keras.Model):
             kl_loss *= -0.5
             total_loss = reconstruction_loss + kl_loss
 
-        grads = tape.gradient(total_loss, self.trainable_weights)
-        self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
+            grads = tape.gradient(total_loss, self.trainable_weights)
+            self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
 
-        return {
-            "loss": total_loss,
-            "reconstruction_loss": reconstruction_loss,
-            "kl_loss": kl_loss,
-        }
+            return {
+                "loss": total_loss,
+                "reconstruction_loss": reconstruction_loss,
+                "kl_loss": kl_loss,
+            }
 
 
-def Encoder_VAE(arq, input_dim):
+def encoder_vae(arq, input_dim):
     encoder_inputs = keras.Input(shape=(input_dim,), name='encoder_input')
 
     if len(arq) == 3:
@@ -448,14 +279,14 @@ def Encoder_VAE(arq, input_dim):
         z_log_var = layers.Dense(arq[2], name="Z_log_var")(second_dense)
         z = Sampling()([z_mean, z_log_var])
 
-    if len(arq) == 2:
+    elif len(arq) == 2:
         first_dense = Dense(arq[0], activation="linear")(encoder_inputs)
 
         z_mean = layers.Dense(arq[1], name="Z_mean")(first_dense)
         z_log_var = layers.Dense(arq[1], name="Z_log_var")(first_dense)
         z = Sampling()([z_mean, z_log_var])
 
-    if len(arq) == 1:
+    else:  # len(arq) == 1
         z_mean = layers.Dense(arq[0], name="Z_mean")(encoder_inputs)
         z_log_var = layers.Dense(arq[0], name="Z_log_var")(encoder_inputs)
         z = Sampling()([z_mean, z_log_var])
@@ -465,7 +296,7 @@ def Encoder_VAE(arq, input_dim):
     return encoder
 
 
-def Decoder_VAE(arq, output_dim):
+def decoder_vae(arq, output_dim):
     latent_inputs = keras.Input(shape=(arq[(len(arq) - 1)],), name='decoder_input')
 
     if len(arq) == 3:
@@ -475,12 +306,12 @@ def Decoder_VAE(arq, output_dim):
 
         decoder_outputs = Dense(output_dim, activation="linear")(second_dense)
 
-    if len(arq) == 2:
+    elif len(arq) == 2:
         first_dense = Dense(arq[0], activation="linear")(latent_inputs)
 
         decoder_outputs = Dense(output_dim, activation="linear")(first_dense)
 
-    if len(arq) == 1:
+    else:  # len(arq) == 1
         decoder_outputs = Dense(output_dim, activation="linear")(latent_inputs)
 
     decoder = keras.Model(latent_inputs, decoder_outputs, name="decoder")
@@ -488,78 +319,16 @@ def Decoder_VAE(arq, output_dim):
     return decoder
 
 
-def VariationalAutoencoder(arq, input_dim):
-    encoder = Encoder_VAE(arq, input_dim)
+def variationalautoencoder(arq, input_dim):
+    encoder = encoder_vae(arq, input_dim)
 
-    decoder = Decoder_VAE(arq, input_dim)
+    decoder = decoder_vae(arq, input_dim)
 
     vae = VAE(encoder, decoder, input_dim)
 
     vae.compile(optimizer=keras.optimizers.Adam())
 
     return vae, encoder, decoder
-
-
-def multimodal_autoencoder(arq, first_input_len, second_input_len, operator):
-    first_input = Input(shape=(first_input_len,), name='first_input_encoder')
-
-    second_input = Input(shape=(second_input_len,), name='second_input_encoder')
-
-    l1 = Dense(np.max([first_input_len, second_input_len]), activation='linear')(first_input)
-    l2 = Dense(np.max([first_input_len, second_input_len]), activation='linear')(second_input)
-
-    fusion = None
-    if operator == 'concatenate':
-        fusion = concatenate([l1, l2])
-    if operator == 'multiply':
-        fusion = multiply([l1, l2])
-    if operator == 'average':
-        fusion = average([l1, l2])
-    if operator == 'subtract':
-        fusion = subtract([l1, l2])
-    if operator == 'add':
-        fusion = add([l1, l2])
-
-    if len(arq) == 3:
-        first_dense_encoder = Dense(arq[0], activation="linear")(fusion)
-
-        second_dense_encoder = Dense(arq[1], activation="linear")(first_dense_encoder)
-
-        encoded = Dense(arq[2], activation="linear")(second_dense_encoder)
-
-        first_dense_decoder = Dense(arq[1], activation="linear")(encoded)
-
-        second_dense_decoder = Dense(arq[0], activation="linear")(first_dense_decoder)
-
-        first_decoder_output = Dense(first_input_len, activation="linear")(second_dense_decoder)
-
-        second_decoder_output = Dense(second_input_len, activation="linear")(second_dense_decoder)
-
-    if len(arq) == 2:
-        first_dense_encoder = Dense(arq[0], activation="linear")(fusion)
-
-        encoded = Dense(arq[1], activation="linear")(first_dense_encoder)
-
-        first_dense_decoder = Dense(arq[0], activation="linear")(encoded)
-
-        first_decoder_output = Dense(first_input_len, activation="linear")(first_dense_decoder)
-
-        second_decoder_output = Dense(second_input_len, activation="linear")(first_dense_decoder)
-
-    if len(arq) == 1:
-        encoded = Dense(arq[0], activation="linear")(fusion)
-
-        first_decoder_output = Dense(first_input_len, activation="linear")(encoded)
-
-        second_decoder_output = Dense(second_input_len, activation="linear")(encoded)
-
-    encoder = Model([first_input, second_input], encoded)
-
-    autoencoder = Model([first_input, second_input], [first_decoder_output, second_decoder_output])
-
-    autoencoder.compile(optimizer=tensorflow.keras.optimizers.Adam(), loss='mse')
-
-    return autoencoder, encoder
 
 
 class MVAE(keras.Model):
@@ -606,7 +375,7 @@ class MVAE(keras.Model):
         }
 
 
-def Encoder_MVAE(arq, embedding_dim, density_dim, operator):
+def encoder_mvae(arq, embedding_dim, density_dim, operator):
     embedding_inputs = keras.Input(shape=(embedding_dim,), name='first_input_encoder')
     density_inputs = keras.Input(shape=(density_dim,), name='second_input_encoder')
 
@@ -624,6 +393,10 @@ def Encoder_MVAE(arq, embedding_dim, density_dim, operator):
         fusion = subtract([l1, l2])
     if operator == 'add':
         fusion = add([l1, l2])
+    if operator == 'max':
+        fusion = maximum([l1, l2])
+    if operator == 'min':
+        fusion = minimum([l1, l2])
 
     if len(arq) == 3:
         first_dense = Dense(arq[0], activation="linear")(fusion)
@@ -634,14 +407,14 @@ def Encoder_MVAE(arq, embedding_dim, density_dim, operator):
         z_log_var = layers.Dense(arq[2], name="Z_log_var")(second_dense)
         z = Sampling()([z_mean, z_log_var])
 
-    if len(arq) == 2:
+    elif len(arq) == 2:
         first_dense = Dense(arq[0], activation="linear")(fusion)
 
         z_mean = layers.Dense(arq[1], name="Z_mean")(first_dense)
         z_log_var = layers.Dense(arq[1], name="Z_log_var")(first_dense)
         z = Sampling()([z_mean, z_log_var])
 
-    if len(arq) == 1:
+    else:  # len(arq) == 1
         z_mean = layers.Dense(arq[0], name="Z_mean")(fusion)
         z_log_var = layers.Dense(arq[0], name="Z_log_var")(fusion)
         z = Sampling()([z_mean, z_log_var])
@@ -651,7 +424,7 @@ def Encoder_MVAE(arq, embedding_dim, density_dim, operator):
     return encoder
 
 
-def Decoder_MVAE(arq, embedding_dim, density_dim):
+def decoder_mvae(arq, embedding_dim, density_dim):
     latent_inputs = keras.Input(shape=(arq[(len(arq) - 1)],), name='input_decoder')
 
     if len(arq) == 3:
@@ -663,14 +436,14 @@ def Decoder_MVAE(arq, embedding_dim, density_dim):
 
         density_outputs = Dense(density_dim, activation="linear")(second_dense)
 
-    if len(arq) == 2:
+    elif len(arq) == 2:
         first_dense = Dense(arq[0], activation="linear")(latent_inputs)
 
         embedding_outputs = Dense(embedding_dim, activation="linear")(first_dense)
 
         density_outputs = Dense(density_dim, activation="linear")(first_dense)
 
-    if len(arq) == 1:
+    else:  # len(arq) == 1
         embedding_outputs = Dense(embedding_dim, activation="linear")(latent_inputs)
 
         density_outputs = Dense(density_dim, activation="linear")(latent_inputs)
@@ -680,10 +453,10 @@ def Decoder_MVAE(arq, embedding_dim, density_dim):
     return decoder
 
 
-def MultimodalVAE(arq, embedding_dim, density_dim, operator):
-    encoder = Encoder_MVAE(arq, embedding_dim, density_dim, operator)
+def multimodalvae(arq, embedding_dim, density_dim, operator):
+    encoder = encoder_mvae(arq, embedding_dim, density_dim, operator)
 
-    decoder = Decoder_MVAE(arq, embedding_dim, density_dim)
+    decoder = decoder_mvae(arq, embedding_dim, density_dim)
 
     mvae = MVAE(encoder, decoder, embedding_dim, density_dim)
 
@@ -692,290 +465,280 @@ def MultimodalVAE(arq, embedding_dim, density_dim, operator):
     return mvae, encoder, decoder
 
 
-def run(datasets, models, preprocessing):
+def term_weight_type(bow_type, language_tokenizer='multilingual'):
+    if bow_type == 'term-frequency':
+        vectorizer = CountVectorizer(strip_accents='ascii', stop_words='english', ngram_range=(1, 1), min_df=1,
+                                     tokenizer=MyTokenizer(language_tokenizer))
+    elif bow_type == 'term-frequency-IDF':
+        vectorizer = TfidfVectorizer(strip_accents='ascii', stop_words='english', ngram_range=(1, 1), min_df=1,
+                                     tokenizer=MyTokenizer(language_tokenizer))
+    else:  # Binary
+        vectorizer = CountVectorizer(strip_accents='ascii', stop_words='english', ngram_range=(1, 1), min_df=1,
+                                     tokenizer=MyTokenizer(language_tokenizer), binary=True)
 
-    # Parameters
-    path_results = './results/'
-    percents = [0.25, 0.50, 0.75, 1]
-    folds = 10
-    kf = foldValidation(folds)
-    line_parameters = ''
-    term_weight_list = ['term-frequency-IDF', 'term-frequency', 'binary']
-    cluster_matrix = [[3, 6, 7, 8], [2, 3, 8, 9], [2, 3, 4, 5, 6, 7, 8, 9, 10]]
-    epochs = [5, 10, 50]
-    arqs = [[384, 128], [256, 128], [256]]
-    path_ae_models = './Autoencoder/'
-    path_vae_models = './VAE/'
-    path_mae_models = './MAE/'
-    path_mvae_models = './MVAE/'
-    operators = ['concatenate', 'multiply', 'average', 'subtract', 'add']
+    return vectorizer
 
-    for dataset in tqdm(datasets.keys()):
 
-        df = datasets[dataset]
+def make_representation(dataset, prepro, df_int, df_out, folds, percent, vectorizer, cluster_list, parameter_list, df_density):
 
-        df_int, df_outiler = interest_outlier(df, class_outlier='irr')
+    representations = []
 
-        for percent in tqdm(percents):
+    for fold in folds:
 
-            if preprocessing == 'Maalej':
+        if prepro == 'BoW':
+            df_train, df_test = train_test_split_pipeline(df_int, percent, 'text', fold)
+            df_outlier = np.array(df_out.text.to_list())
 
-                train_test_interest = train_test_split_one_class(kf, df_int, 'Maalej Features', percent)
+            vectorizer.fit(df_train)
 
-                representations = make_representation(train_test_interest,
-                                                      np.array(df_outiler['Maalej Features'].to_list()), preprocessing)
+            x_train = vectorizer.transform(df_train).toarray()
+            x_test = vectorizer.transform(df_test).toarray()
+            x_outlier = vectorizer.transform(df_outlier).toarray()
 
-                file_name = dataset + '_' + preprocessing + '_' + str(percent)
+        elif prepro == 'Maalej':
+            df_train, df_test = train_test_split_pipeline(df_int, percent, 'Maalej Features', fold)
+            df_outlier = np.array(df_out['Maalej Features'].to_list())
 
-                evaluate_models(models, representations, file_name, line_parameters, path_results)
+            x_train = df_train
+            x_test = df_test
+            x_outlier = df_outlier
 
-                del representations
-                del train_test_interest
+        else:
+            df_train, df_test = train_test_split_pipeline(df_int, percent, 'DistilBERT Multilingua', fold)
+            df_outlier = np.array(df_out['DistilBERT Multilingua'].to_list())
+
+            if prepro == 'DBERTML':
+                x_train = df_train
+                x_test = df_test
+                x_outlier = df_outlier
+
+            elif prepro == 'Density':
+                x_train = df_density[dataset][percent][str(cluster_list)][fold][0]
+                x_test = df_density[dataset][percent][str(cluster_list)][fold][1]
+                x_outlier = df_density[dataset][percent][str(cluster_list)][fold][2]
+
+            elif prepro == 'AE':
+
+                epoch = parameter_list[0]
+                arq = parameter_list[1]
+
+                tf.random.set_seed(1)
+
+                ae, encoder = autoencoder(arq, len(df_train[0]))
+
+                ae.fit(df_train, df_train, epochs=epoch, batch_size=32, verbose=0)
+
+                x_train = encoder.predict(df_train)
+                x_test = encoder.predict(df_test)
+                x_outlier = encoder.predict(df_outlier)
+
+            elif prepro == 'VAE':
+
+                epoch = parameter_list[0]
+                arq = parameter_list[1]
+
+                tf.random.set_seed(1)
+
+                vae, encoder, decoder = variationalautoencoder(arq, len(df_train[0]))
+
+                vae.fit(df_train, df_train, epochs=epoch, batch_size=32, verbose=0)
+
+                x_train, _, _ = encoder.predict(df_train)
+                x_test, _, _ = encoder.predict(df_test)
+                x_outlier, _, _ = encoder.predict(df_outlier)
+
+            elif prepro == 'MAE':
+                density_train = df_density[dataset][percent][str(cluster_list)][fold][0]
+                density_test = df_density[dataset][percent][str(cluster_list)][fold][1]
+                density_outlier = df_density[dataset][percent][str(cluster_list)][fold][2]
+
+                epoch = parameter_list[0]
+                arq = parameter_list[1]
+                operator = parameter_list[2]
+
+                tf.random.set_seed(1)
+
+                aem, encoder = multimodal_autoencoder(arq, len(df_train[0]), len(density_train[0]), operator)
+
+                aem.fit([df_train, density_train], [df_train, density_train], epochs=epoch, batch_size=32, verbose=0)
+
+                x_train = encoder.predict([df_train, density_train])
+                x_test = encoder.predict([df_test, density_test])
+                x_outlier = encoder.predict([df_outlier, density_outlier])
+
+                del density_train
+                del density_test
+                del density_outlier
                 collect()
 
-            elif preprocessing == 'FastText':
+            else:  # MVAE
+                density_train = df_density[dataset][percent][str(cluster_list)][fold][0]
+                density_test = df_density[dataset][percent][str(cluster_list)][fold][1]
+                density_outlier = df_density[dataset][percent][str(cluster_list)][fold][2]
 
-                train_test_interest = train_test_split_one_class(kf, df_int, 'Maalej Features', percent)
+                epoch = parameter_list[0]
+                arq = parameter_list[1]
+                operator = parameter_list[2]
 
-                representations = make_representation(train_test_interest,
-                                                      np.array(df_outiler['Maalej Features'].to_list()), preprocessing)
+                tf.random.set_seed(1)
 
-                file_name = dataset + '_' + preprocessing + '_' + str(percent)
+                mvae, encoder, decoder = multimodalvae(arq, len(df_train[0]), len(cluster_list), operator)
 
-                evaluate_models(models, representations, file_name, line_parameters, path_results)
+                mvae.fit([df_train, density_train], [df_train, density_train], epochs=epoch, batch_size=32, verbose=0)
 
-                del representations
-                del train_test_interest
+                x_train, _, _ = encoder.predict([df_train, density_train])
+                x_test, _, _ = encoder.predict([df_test, density_test])
+                x_outlier, _, _ = encoder.predict([df_outlier, density_outlier])
+
+                del density_train
+                del density_test
+                del density_outlier
                 collect()
 
-            elif preprocessing == 'BoW':
-
-                for term_weight in term_weight_list:
-                    print('Term Wheight: ' + term_weight)
-                    vectorizer = term_weight_type(term_weight)
-
-                    train_test_interest = train_test_split_one_class(kf, df_int, 'text', percent)
-
-                    representations = make_representation(train_test_interest, np.array(df_outiler['text'].to_list()),
-                                                          preprocessing, vectorizer=vectorizer)
-
-                    file_name = dataset + '_' + preprocessing + '_' + term_weight + '_' + str(percent)
-
-                    evaluate_models(models, representations, file_name, line_parameters, path_results)
-
-                    del representations
-                    del train_test_interest
-                    collect()
-
-            elif preprocessing == 'DBERTML':
-
-                train_test_interest = train_test_split_one_class(kf, df_int, 'DistilBERT Multilingual', percent)
-
-                representations = make_representation(train_test_interest,
-                                                      np.array(df_outiler['DistilBERT Multilingual'].to_list()),
-                                                      preprocessing)
-
-                file_name = dataset + '_' + preprocessing + '_' + str(percent)
-
-                evaluate_models(models, representations, file_name, line_parameters, path_results)
-
-                del representations
-                del train_test_interest
-                collect()
-
-            elif preprocessing == 'Density':
-
-                for cluster_list in cluster_matrix:
-                    print('Cluster List: ' + str(cluster_list))
-                    train_test_interest = train_test_split_one_class(kf, df_int, 'DistilBERT Multilingual', percent)
-
-                    representations = make_representation(train_test_interest,
-                                                          np.array(df_outiler['DistilBERT Multilingual'].to_list()),
-                                                          preprocessing, cluster_list=cluster_list)
-
-                    file_name = dataset + '_' + preprocessing + '_' + str(percent)
-
-                    line_parameters = str(cluster_list)
-
-                    evaluate_models(models, representations, file_name, line_parameters, path_results)
-
-                    del representations
-                    del train_test_interest
-                    collect()
-
-            elif preprocessing == 'AE':
-
-                for epoch in epochs:
-                    print('Epoch: ' + str(epoch))
-                    for arq in arqs:
-
-                        arq_name = str(arq).replace('[', '(')
-                        arq_name = arq_name.replace(']', ')')
-                        print('Arq: ' + arq_name)
-
-                        model_file_name = dataset + '_' + str(epoch) + '_' + arq_name + '_' + str(percent)
-
-                        parameter_list_AE = (epoch, arq, model_file_name, path_ae_models)
-
-                        train_test_interest = train_test_split_one_class(kf, df_int, 'DistilBERT Multilingual', percent)
-
-                        representations = make_representation(train_test_interest,
-                                                              np.array(df_outiler['DistilBERT Multilingual'].to_list()),
-                                                              preprocessing, parameter_list_AE=parameter_list_AE)
-
-                        result_file_name = dataset + '_' + preprocessing + '_' + str(percent)
-
-                        line_parameters = str(epoch) + '_' + str(arq)
-
-                        evaluate_models(models, representations, result_file_name, line_parameters, path_results)
-
-                        del representations
-                        del train_test_interest
-                        collect()
-
-            elif preprocessing == 'VAE':
-
-                for epoch in epochs:
-                    print('Epoch: ' + str(epoch))
-                    for arq in arqs:
-                        arq_name = str(arq).replace('[', '(')
-                        arq_name = arq_name.replace(']', ')')
-                        print('Arq: ' + arq_name)
-
-                        model_file_name = dataset + '_' + str(epoch) + '_' + arq_name + '_' + str(percent)
-
-                        parameter_list_VAE = (epoch, arq, model_file_name, path_vae_models)
-
-                        train_test_interest = train_test_split_one_class(kf, df_int, 'DistilBERT Multilingual', percent)
-
-                        representations = make_representation(train_test_interest,
-                                                              np.array(df_outiler['DistilBERT Multilingual'].to_list()),
-                                                              preprocessing, parameter_list_VAE=parameter_list_VAE)
-
-                        result_file_name = dataset + '_' + preprocessing + '_' + str(percent)
-
-                        line_parameters = str(epoch) + '_' + str(arq)
-
-                        evaluate_models(models, representations, result_file_name, line_parameters, path_results)
-
-                        del representations
-                        del train_test_interest
-                        collect()
-
-            elif preprocessing == 'MAE':
-
-                for epoch in epochs:
-                    print('Epoch: ' + str(epoch))
-                    for arq in arqs:
-
-                        arq_name = str(arq).replace('[', '(')
-                        arq_name = arq_name.replace(']', ')')
-                        print('Arq: ' + arq_name)
-
-                        for operator in operators:
-                            print('Operator: ' + operator)
-                            for cluster_list in cluster_matrix:
-                                cluster_name = str(cluster_list).replace('[', '(')
-                                cluster_name = cluster_name.replace(']', ')')
-
-                                print('Cluster List: ' + cluster_name)
-
-                                model_file_name = dataset + '_' + str(
-                                    epoch) + '_' + arq_name + '_' + operator + '_' + cluster_name + '_' + str(percent)
-
-                                parameter_list_MAE = (epoch, arq, model_file_name, path_mae_models, operator)
-
-                                train_test_interest = train_test_split_one_class(kf, df_int, 'DistilBERT Multilingual',
-                                                                                 percent)
-
-                                representations = make_representation(train_test_interest, np.array(
-                                    df_outiler['DistilBERT Multilingual'].to_list()), preprocessing,
-                                                                      cluster_list=cluster_list,
-                                                                      parameter_list_MAE=parameter_list_MAE)
-
-                                result_file_name = dataset + '_' + preprocessing + '_' + str(percent)
-
-                                line_parameters = str(epoch) + '_' + str(arq) + '_' + str(cluster_list) + '_' + str(
-                                    operator)
-
-                                evaluate_models(models, representations, result_file_name, line_parameters,
-                                                path_results)
-
-                                del representations
-                                del train_test_interest
-                                collect()
-
-            elif preprocessing == 'MVAE':
-
-                for epoch in epochs:
-                    print('Epoch: ' + str(epoch))
-                    for arq in arqs:
-
-                        arq_name = str(arq).replace('[', '(')
-                        arq_name = arq_name.replace(']', ')')
-                        print('Arq: ' + arq_name)
-
-                        for operator in operators:
-                            print('Operator: ' + operator)
-                            for cluster_list in cluster_matrix:
-                                cluster_name = str(cluster_list).replace('[', '(')
-                                cluster_name = cluster_name.replace(']', ')')
-
-                                print('Cluster List: ' + cluster_name)
-
-                                model_file_name = dataset + '_' + str(
-                                    epoch) + '_' + arq_name + '_' + operator + '_' + cluster_name + '_' + str(percent)
-
-                                parameter_list_MVAE = (epoch, arq, model_file_name, path_mvae_models, operator)
-
-                                train_test_interest = train_test_split_one_class(kf, df_int, 'DistilBERT Multilingual',
-                                                                                 percent)
-
-                                representations = make_representation(train_test_interest, np.array(
-                                    df_outiler['DistilBERT Multilingual'].to_list()), preprocessing,
-                                                                      cluster_list=cluster_list,
-                                                                      parameter_list_MVAE=parameter_list_MVAE)
-
-                                result_file_name = dataset + '_' + preprocessing + '_' + str(percent)
-
-                                line_parameters = str(epoch) + '_' + str(arq) + '_' + str(cluster_list) + '_' + str(
-                                    operator)
-
-                                evaluate_models(models, representations, result_file_name, line_parameters,
-                                                path_results)
-
-                                del representations
-                                del train_test_interest
-                                collect()
-
-        del df
-        del df_int
-        del df_outiler
+        representations.append((x_train, x_test, x_outlier))
+
+        del df_train
+        del df_test
+        del df_outlier
+        del x_train
+        del x_test
+        del x_outlier
         collect()
+
+    return representations
+
+
+def make_prepro_evaluate(dataset, models, file_name, line_parameters, path, prepro, df_int, df_out, folds, percent,
+                         vectorizer=CountVectorizer(), cluster_list=(), parameter_list=(), df_density=()):
+
+    representations = make_representation(dataset, prepro, df_int, df_out, folds, percent, vectorizer, cluster_list,
+                                          parameter_list, df_density)
+
+    evaluate_models(models, representations, file_name, line_parameters, path, percent)
+
+    del representations
+    collect()
+
+
+
+def preprocessing_evaluate(df_density, datasets_dictionary, dataset, prepro, models, path_results, term_weight_list,
+                                   percents, cluster_matrix, epochs, arqs, operators):
+
+    df = datasets_dictionary[dataset]
+
+    df_int = df[df.category != 'irr']
+
+    df_out = df[df.category == 'irr']
+
+    folds = df_int['fold'].unique()
+
+    file_name = dataset + '_' + prepro
+    line_parameters = ''
+
+    for percent in percents:
+        if prepro == 'DBERTML' or prepro == 'Maalej':
+            make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro, df_int, df_out, folds,
+                                 percent)
+
+        elif prepro == 'BoW':
+            for term_weight in term_weight_list:
+                file_name = dataset + '_' + prepro + '-' + term_weight
+                vectorizer = term_weight_type(term_weight)
+                make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro, df_int, df_out, folds,
+                                     percent, vectorizer=vectorizer)
+
+        elif prepro == 'Density':
+            for cluster_list in cluster_matrix:
+                line_parameters = str(cluster_list)
+                make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro, df_int, df_out, folds,
+                                     percent, cluster_list=cluster_list, df_density=df_density)
+
+        else:
+            for epoch in epochs:
+                for arq in arqs:
+                    if prepro == 'AE' or prepro == 'VAE':
+                        line_parameters = str(epoch) + '_' + str(arq)
+                        parameter_list = (epoch, arq)
+
+                        make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro, df_int, df_out,
+                                             folds, percent, parameter_list=parameter_list)
+
+                    elif prepro == 'MAE' or prepro == 'MVAE':
+                        for operator in operators:
+                            for cluster_list in cluster_matrix:
+                                line_parameters = str(epoch) + '_' + str(arq) + '_' + str(operator) + '_' + str(
+                                    cluster_list)
+
+                                parameter_list = (epoch, arq, operator)
+
+                                make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro,
+                                                     df_int, df_out, folds, percent, cluster_list=cluster_list,
+                                                     parameter_list=parameter_list, df_density=df_density)
+
+    del df
+    del df_int
+    del df_out
+    collect()
+
+def densities(percents, cluster_matrix, datasets_dictionary):
+
+    df_densities = {}
+    for dataset in datasets_dictionary.keys():
+        df_densities[dataset] = {}
+
+        df = datasets_dictionary[dataset]
+
+        df_int = df[df.category != 'irr']
+
+        df_out = df[df.category == 'irr']
+
+        folds = df_int['fold'].unique()
+
+        for percent in percents:
+            df_densities[dataset][percent] = {}
+
+            for cluster_list in cluster_matrix:
+                df_densities[dataset][percent][str(cluster_list)] = {}
+
+                for fold in folds:
+
+                    df_train, df_test = train_test_split_pipeline(df_int, percent, 'DistilBERT Multilingua', fold)
+                    df_outlier = np.array(df_out['DistilBERT Multilingua'].to_list())
+
+                    df_densities[dataset][percent][str(cluster_list)][fold] = make_density_information(cluster_list, df_train, df_test, df_outlier)
+
+    return df_densities
+
+
+def run(datasets_dictionary, models, prepros, path_results, term_weight_list, percents, cluster_matrix, epochs, arqs,
+        operators):
+
+    df_density = densities(percents, cluster_matrix, datasets_dictionary)
+
+    for dataset in tqdm(datasets_dictionary.keys()):
+        for prepro in prepros:
+            preprocessing_evaluate(df_density, datasets_dictionary, dataset, prepro, models, path_results, term_weight_list,
+                                   percents, cluster_matrix, epochs, arqs, operators)
 
 
 if __name__ == '__main__':
 
-    os.system("./download.sh")
+    warnings.filterwarnings("ignore")
+    print('Start')
 
-    datasets = {
-        'ARE': pd.read_pickle('datasets/ARE.plk'),
-        'TEN': pd.read_pickle('datasets/TEN.plk'),
-        'TIT': pd.read_pickle('datasets/TIN.plk')
-    }
+    path_results = './results/'
+    percents = [3, 5, 7, 10]
+    term_weight_list = ['term-frequency-IDF', 'term-frequency', 'binary']
+    cluster_matrix = [[3, 6, 7, 8], [2, 3, 8, 9], [2, 3, 4, 5, 6, 7, 8, 9, 10]]
+    epochs = [5, 10, 50]
+    arqs = [[384, 128], [256, 128], [256]]
+    operators = ['concatenate', 'multiply', 'average', 'subtract', 'add']
 
     models = {
-        'SVDD_Linear_scale': SVDD(kernel='linear', gamma='scale'),
-        'SVDD_Linear_auto': SVDD(kernel='linear', gamma='auto'),
-        'SVDD_Sigmoid_scale': SVDD(kernel='sigmoid', gamma='scale'),
-        'SVDD_Sigmoid_auto': SVDD(kernel='sigmoid', gamma='auto'),
-        'SVDD_Poly_2_scale': SVDD(kernel='poly', degree=2, gamma='scale'),
-        'SVDD_Poly_2_auto': SVDD(kernel='poly', degree=2, gamma='auto'),
-        'SVDD_Poly_3_scale': SVDD(kernel='poly', degree=3, gamma='scale'),
-        'SVDD_Poly_3_auto': SVDD(kernel='poly', degree=3, gamma='auto'),
-        'SVDD_Poly_4_scale': SVDD(kernel='poly', degree=4, gamma='scale'),
-        'SVDD_Poly_4_auto': SVDD(kernel='poly', degree=4, gamma='auto'),
+        'SVDD_RBF_0.0001_scale': SVDD(kernel='rbf', nu=0.0001, gamma='scale'),
+        'SVDD_RBF_0.0005_scale': SVDD(kernel='rbf', nu=0.0005, gamma='scale'),
         'SVDD_RBF_0.001_scale': SVDD(kernel='rbf', nu=0.001, gamma='scale'),
+        'SVDD_RBF_0.005_scale': SVDD(kernel='rbf', nu=0.005, gamma='scale'),
         'SVDD_RBF_0.01_scale': SVDD(kernel='rbf', nu=0.01, gamma='scale'),
         'SVDD_RBF_0.05_scale': SVDD(kernel='rbf', nu=0.05, gamma='scale'),
         'SVDD_RBF_0.1_scale': SVDD(kernel='rbf', nu=0.1, gamma='scale'),
@@ -987,7 +750,10 @@ if __name__ == '__main__':
         'SVDD_RBF_0.7_scale': SVDD(kernel='rbf', nu=0.7, gamma='scale'),
         'SVDD_RBF_0.8_scale': SVDD(kernel='rbf', nu=0.8, gamma='scale'),
         'SVDD_RBF_0.9_scale': SVDD(kernel='rbf', nu=0.9, gamma='scale'),
+        'SVDD_RBF_0.0001_auto': SVDD(kernel='rbf', nu=0.0001, gamma='auto'),
+        'SVDD_RBF_0.0005_auto': SVDD(kernel='rbf', nu=0.0005, gamma='auto'),
         'SVDD_RBF_0.001_auto': SVDD(kernel='rbf', nu=0.001, gamma='auto'),
+        'SVDD_RBF_0.005_auto': SVDD(kernel='rbf', nu=0.005, gamma='auto'),
         'SVDD_RBF_0.01_auto': SVDD(kernel='rbf', nu=0.01, gamma='auto'),
         'SVDD_RBF_0.05_auto': SVDD(kernel='rbf', nu=0.05, gamma='auto'),
         'SVDD_RBF_0.1_auto': SVDD(kernel='rbf', nu=0.1, gamma='auto'),
@@ -998,9 +764,180 @@ if __name__ == '__main__':
         'SVDD_RBF_0.6_auto': SVDD(kernel='rbf', nu=0.6, gamma='auto'),
         'SVDD_RBF_0.7_auto': SVDD(kernel='rbf', nu=0.7, gamma='auto'),
         'SVDD_RBF_0.8_auto': SVDD(kernel='rbf', nu=0.8, gamma='auto'),
-        'SVDD_RBF_0.9_auto': SVDD(kernel='rbf', nu=0.9, gamma='auto')
+        'SVDD_RBF_0.9_auto': SVDD(kernel='rbf', nu=0.9, gamma='auto'),
+        'SVDD_linear_0.0001_scale': SVDD(kernel='linear', nu=0.0001, gamma='scale'),
+        'SVDD_linear_0.0005_scale': SVDD(kernel='linear', nu=0.0005, gamma='scale'),
+        'SVDD_linear_0.001_scale': SVDD(kernel='linear', nu=0.001, gamma='scale'),
+        'SVDD_linear_0.005_scale': SVDD(kernel='linear', nu=0.005, gamma='scale'),
+        'SVDD_linear_0.01_scale': SVDD(kernel='linear', nu=0.01, gamma='scale'),
+        'SVDD_linear_0.05_scale': SVDD(kernel='linear', nu=0.05, gamma='scale'),
+        'SVDD_linear_0.1_scale': SVDD(kernel='linear', nu=0.1, gamma='scale'),
+        'SVDD_linear_0.2_scale': SVDD(kernel='linear', nu=0.2, gamma='scale'),
+        'SVDD_linear_0.3_scale': SVDD(kernel='linear', nu=0.3, gamma='scale'),
+        'SVDD_linear_0.4_scale': SVDD(kernel='linear', nu=0.4, gamma='scale'),
+        'SVDD_linear_0.5_scale': SVDD(kernel='linear', nu=0.5, gamma='scale'),
+        'SVDD_linear_0.6_scale': SVDD(kernel='linear', nu=0.6, gamma='scale'),
+        'SVDD_linear_0.7_scale': SVDD(kernel='linear', nu=0.7, gamma='scale'),
+        'SVDD_linear_0.8_scale': SVDD(kernel='linear', nu=0.8, gamma='scale'),
+        'SVDD_linear_0.9_scale': SVDD(kernel='linear', nu=0.9, gamma='scale'),
+        'SVDD_linear_0.0001_auto': SVDD(kernel='linear', nu=0.0001, gamma='auto'),
+        'SVDD_linear_0.0005_auto': SVDD(kernel='linear', nu=0.0005, gamma='auto'),
+        'SVDD_linear_0.001_auto': SVDD(kernel='linear', nu=0.001, gamma='auto'),
+        'SVDD_linear_0.005_auto': SVDD(kernel='linear', nu=0.005, gamma='auto'),
+        'SVDD_linear_0.01_auto': SVDD(kernel='linear', nu=0.01, gamma='auto'),
+        'SVDD_linear_0.05_auto': SVDD(kernel='linear', nu=0.05, gamma='auto'),
+        'SVDD_linear_0.1_auto': SVDD(kernel='linear', nu=0.1, gamma='auto'),
+        'SVDD_linear_0.2_auto': SVDD(kernel='linear', nu=0.2, gamma='auto'),
+        'SVDD_linear_0.3_auto': SVDD(kernel='linear', nu=0.3, gamma='auto'),
+        'SVDD_linear_0.4_auto': SVDD(kernel='linear', nu=0.4, gamma='auto'),
+        'SVDD_linear_0.5_auto': SVDD(kernel='linear', nu=0.5, gamma='auto'),
+        'SVDD_linear_0.6_auto': SVDD(kernel='linear', nu=0.6, gamma='auto'),
+        'SVDD_linear_0.7_auto': SVDD(kernel='linear', nu=0.7, gamma='auto'),
+        'SVDD_linear_0.8_auto': SVDD(kernel='linear', nu=0.8, gamma='auto'),
+        'SVDD_linear_0.9_auto': SVDD(kernel='linear', nu=0.9, gamma='auto'),
+        'SVDD_sigmoid_0.0001_scale': SVDD(kernel='sigmoid', nu=0.0001, gamma='scale'),
+        'SVDD_sigmoid_0.0005_scale': SVDD(kernel='sigmoid', nu=0.0005, gamma='scale'),
+        'SVDD_sigmoid_0.001_scale': SVDD(kernel='sigmoid', nu=0.001, gamma='scale'),
+        'SVDD_sigmoid_0.005_scale': SVDD(kernel='sigmoid', nu=0.005, gamma='scale'),
+        'SVDD_sigmoid_0.01_scale': SVDD(kernel='sigmoid', nu=0.01, gamma='scale'),
+        'SVDD_sigmoid_0.05_scale': SVDD(kernel='sigmoid', nu=0.05, gamma='scale'),
+        'SVDD_sigmoid_0.1_scale': SVDD(kernel='sigmoid', nu=0.1, gamma='scale'),
+        'SVDD_sigmoid_0.2_scale': SVDD(kernel='sigmoid', nu=0.2, gamma='scale'),
+        'SVDD_sigmoid_0.3_scale': SVDD(kernel='sigmoid', nu=0.3, gamma='scale'),
+        'SVDD_sigmoid_0.4_scale': SVDD(kernel='sigmoid', nu=0.4, gamma='scale'),
+        'SVDD_sigmoid_0.5_scale': SVDD(kernel='sigmoid', nu=0.5, gamma='scale'),
+        'SVDD_sigmoid_0.6_scale': SVDD(kernel='sigmoid', nu=0.6, gamma='scale'),
+        'SVDD_sigmoid_0.7_scale': SVDD(kernel='sigmoid', nu=0.7, gamma='scale'),
+        'SVDD_sigmoid_0.8_scale': SVDD(kernel='sigmoid', nu=0.8, gamma='scale'),
+        'SVDD_sigmoid_0.9_scale': SVDD(kernel='sigmoid', nu=0.9, gamma='scale'),
+        'SVDD_sigmoid_0.0001_auto': SVDD(kernel='sigmoid', nu=0.0001, gamma='auto'),
+        'SVDD_sigmoid_0.0005_auto': SVDD(kernel='sigmoid', nu=0.0005, gamma='auto'),
+        'SVDD_sigmoid_0.001_auto': SVDD(kernel='sigmoid', nu=0.001, gamma='auto'),
+        'SVDD_sigmoid_0.005_auto': SVDD(kernel='sigmoid', nu=0.005, gamma='auto'),
+        'SVDD_sigmoid_0.01_auto': SVDD(kernel='sigmoid', nu=0.01, gamma='auto'),
+        'SVDD_sigmoid_0.05_auto': SVDD(kernel='sigmoid', nu=0.05, gamma='auto'),
+        'SVDD_sigmoid_0.1_auto': SVDD(kernel='sigmoid', nu=0.1, gamma='auto'),
+        'SVDD_sigmoid_0.2_auto': SVDD(kernel='sigmoid', nu=0.2, gamma='auto'),
+        'SVDD_sigmoid_0.3_auto': SVDD(kernel='sigmoid', nu=0.3, gamma='auto'),
+        'SVDD_sigmoid_0.4_auto': SVDD(kernel='sigmoid', nu=0.4, gamma='auto'),
+        'SVDD_sigmoid_0.5_auto': SVDD(kernel='sigmoid', nu=0.5, gamma='auto'),
+        'SVDD_sigmoid_0.6_auto': SVDD(kernel='sigmoid', nu=0.6, gamma='auto'),
+        'SVDD_sigmoid_0.7_auto': SVDD(kernel='sigmoid', nu=0.7, gamma='auto'),
+        'SVDD_sigmoid_0.8_auto': SVDD(kernel='sigmoid', nu=0.8, gamma='auto'),
+        'SVDD_sigmoid_0.9_auto': SVDD(kernel='sigmoid', nu=0.9, gamma='auto'),
+        'SVDD_poly_2_0.0001_scale': SVDD(kernel='poly', nu=0.0001, gamma='scale', degree=2),
+        'SVDD_poly_2_0.0005_scale': SVDD(kernel='poly', nu=0.0005, gamma='scale', degree=2),
+        'SVDD_poly_2_0.001_scale': SVDD(kernel='poly', nu=0.001, gamma='scale', degree=2),
+        'SVDD_poly_2_0.005_scale': SVDD(kernel='poly', nu=0.005, gamma='scale', degree=2),
+        'SVDD_poly_2_0.01_scale': SVDD(kernel='poly', nu=0.01, gamma='scale', degree=2),
+        'SVDD_poly_2_0.05_scale': SVDD(kernel='poly', nu=0.05, gamma='scale', degree=2),
+        'SVDD_poly_2_0.1_scale': SVDD(kernel='poly', nu=0.1, gamma='scale', degree=2),
+        'SVDD_poly_2_0.2_scale': SVDD(kernel='poly', nu=0.2, gamma='scale', degree=2),
+        'SVDD_poly_2_0.3_scale': SVDD(kernel='poly', nu=0.3, gamma='scale', degree=2),
+        'SVDD_poly_2_0.4_scale': SVDD(kernel='poly', nu=0.4, gamma='scale', degree=2),
+        'SVDD_poly_2_0.5_scale': SVDD(kernel='poly', nu=0.5, gamma='scale', degree=2),
+        'SVDD_poly_2_0.6_scale': SVDD(kernel='poly', nu=0.6, gamma='scale', degree=2),
+        'SVDD_poly_2_0.7_scale': SVDD(kernel='poly', nu=0.7, gamma='scale', degree=2),
+        'SVDD_poly_2_0.8_scale': SVDD(kernel='poly', nu=0.8, gamma='scale', degree=2),
+        'SVDD_poly_2_0.9_scale': SVDD(kernel='poly', nu=0.9, gamma='scale', degree=2),
+        'SVDD_poly_2_0.0001_auto': SVDD(kernel='poly', nu=0.0001, gamma='auto', degree=2),
+        'SVDD_poly_2_0.0005_auto': SVDD(kernel='poly', nu=0.0005, gamma='auto', degree=2),
+        'SVDD_poly_2_0.001_auto': SVDD(kernel='poly', nu=0.001, gamma='auto', degree=2),
+        'SVDD_poly_2_0.005_auto': SVDD(kernel='poly', nu=0.005, gamma='auto', degree=2),
+        'SVDD_poly_2_0.01_auto': SVDD(kernel='poly', nu=0.01, gamma='auto', degree=2),
+        'SVDD_poly_2_0.05_auto': SVDD(kernel='poly', nu=0.05, gamma='auto', degree=2),
+        'SVDD_poly_2_0.1_auto': SVDD(kernel='poly', nu=0.1, gamma='auto', degree=2),
+        'SVDD_poly_2_0.2_auto': SVDD(kernel='poly', nu=0.2, gamma='auto', degree=2),
+        'SVDD_poly_2_0.3_auto': SVDD(kernel='poly', nu=0.3, gamma='auto', degree=2),
+        'SVDD_poly_2_0.4_auto': SVDD(kernel='poly', nu=0.4, gamma='auto', degree=2),
+        'SVDD_poly_2_0.5_auto': SVDD(kernel='poly', nu=0.5, gamma='auto', degree=2),
+        'SVDD_poly_2_3_0.6_auto': SVDD(kernel='poly', nu=0.6, gamma='auto', degree=2),
+        'SVDD_poly_2_0.7_auto': SVDD(kernel='poly', nu=0.7, gamma='auto', degree=2),
+        'SVDD_poly_2_0.8_auto': SVDD(kernel='poly', nu=0.8, gamma='auto', degree=2),
+        'SVDD_poly_2_0.9_auto': SVDD(kernel='poly', nu=0.9, gamma='auto', degree=2),
+        'SVDD_poly_3_0.0001_scale': SVDD(kernel='poly', nu=0.0001, gamma='scale', degree=3),
+        'SVDD_poly_3_0.0005_scale': SVDD(kernel='poly', nu=0.0005, gamma='scale', degree=3),
+        'SVDD_poly_3_0.001_scale': SVDD(kernel='poly', nu=0.001, gamma='scale', degree=3),
+        'SVDD_poly_3_0.005_scale': SVDD(kernel='poly', nu=0.005, gamma='scale', degree=3),
+        'SVDD_poly_3_0.01_scale': SVDD(kernel='poly', nu=0.01, gamma='scale', degree=3),
+        'SVDD_poly_3_0.05_scale': SVDD(kernel='poly', nu=0.05, gamma='scale', degree=3),
+        'SVDD_poly_3_0.1_scale': SVDD(kernel='poly', nu=0.1, gamma='scale', degree=3),
+        'SVDD_poly_3_0.2_scale': SVDD(kernel='poly', nu=0.2, gamma='scale', degree=3),
+        'SVDD_poly_3_0.3_scale': SVDD(kernel='poly', nu=0.3, gamma='scale', degree=3),
+        'SVDD_poly_3_0.4_scale': SVDD(kernel='poly', nu=0.4, gamma='scale', degree=3),
+        'SVDD_poly_3_0.5_scale': SVDD(kernel='poly', nu=0.5, gamma='scale', degree=3),
+        'SVDD_poly_3_0.6_scale': SVDD(kernel='poly', nu=0.6, gamma='scale', degree=3),
+        'SVDD_poly_3_0.7_scale': SVDD(kernel='poly', nu=0.7, gamma='scale', degree=3),
+        'SVDD_poly_3_0.8_scale': SVDD(kernel='poly', nu=0.8, gamma='scale', degree=3),
+        'SVDD_poly_3_0.9_scale': SVDD(kernel='poly', nu=0.9, gamma='scale', degree=3),
+        'SVDD_poly_3_0.0001_auto': SVDD(kernel='poly', nu=0.0001, gamma='auto', degree=3),
+        'SVDD_poly_3_0.0005_auto': SVDD(kernel='poly', nu=0.0005, gamma='auto', degree=3),
+        'SVDD_poly_3_0.001_auto': SVDD(kernel='poly', nu=0.001, gamma='auto', degree=3),
+        'SVDD_poly_3_0.005_auto': SVDD(kernel='poly', nu=0.005, gamma='auto', degree=3),
+        'SVDD_poly_3_0.01_auto': SVDD(kernel='poly', nu=0.01, gamma='auto', degree=3),
+        'SVDD_poly_3_0.05_auto': SVDD(kernel='poly', nu=0.05, gamma='auto', degree=3),
+        'SVDD_poly_3_0.1_auto': SVDD(kernel='poly', nu=0.1, gamma='auto', degree=3),
+        'SVDD_poly_3_0.2_auto': SVDD(kernel='poly', nu=0.2, gamma='auto', degree=3),
+        'SVDD_poly_3_0.3_auto': SVDD(kernel='poly', nu=0.3, gamma='auto', degree=3),
+        'SVDD_poly_3_0.4_auto': SVDD(kernel='poly', nu=0.4, gamma='auto', degree=3),
+        'SVDD_poly_3_0.5_auto': SVDD(kernel='poly', nu=0.5, gamma='auto', degree=3),
+        'SVDD_poly_3_3_0.6_auto': SVDD(kernel='poly', nu=0.6, gamma='auto', degree=3),
+        'SVDD_poly_3_0.7_auto': SVDD(kernel='poly', nu=0.7, gamma='auto', degree=3),
+        'SVDD_poly_3_0.8_auto': SVDD(kernel='poly', nu=0.8, gamma='auto', degree=3),
+        'SVDD_poly_3_0.9_auto': SVDD(kernel='poly', nu=0.9, gamma='auto', degree=3),
+        'SVDD_poly_4_0.0001_scale': SVDD(kernel='poly', nu=0.0001, gamma='scale', degree=4),
+        'SVDD_poly_4_0.0005_scale': SVDD(kernel='poly', nu=0.0005, gamma='scale', degree=4),
+        'SVDD_poly_4_0.001_scale': SVDD(kernel='poly', nu=0.001, gamma='scale', degree=4),
+        'SVDD_poly_4_0.005_scale': SVDD(kernel='poly', nu=0.005, gamma='scale', degree=4),
+        'SVDD_poly_4_0.01_scale': SVDD(kernel='poly', nu=0.01, gamma='scale', degree=4),
+        'SVDD_poly_4_0.05_scale': SVDD(kernel='poly', nu=0.05, gamma='scale', degree=4),
+        'SVDD_poly_4_0.1_scale': SVDD(kernel='poly', nu=0.1, gamma='scale', degree=4),
+        'SVDD_poly_4_0.2_scale': SVDD(kernel='poly', nu=0.2, gamma='scale', degree=4),
+        'SVDD_poly_4_0.3_scale': SVDD(kernel='poly', nu=0.3, gamma='scale', degree=4),
+        'SVDD_poly_4_0.4_scale': SVDD(kernel='poly', nu=0.4, gamma='scale', degree=4),
+        'SVDD_poly_4_0.5_scale': SVDD(kernel='poly', nu=0.5, gamma='scale', degree=4),
+        'SVDD_poly_4_0.6_scale': SVDD(kernel='poly', nu=0.6, gamma='scale', degree=4),
+        'SVDD_poly_4_0.7_scale': SVDD(kernel='poly', nu=0.7, gamma='scale', degree=4),
+        'SVDD_poly_4_0.8_scale': SVDD(kernel='poly', nu=0.8, gamma='scale', degree=4),
+        'SVDD_poly_4_0.9_scale': SVDD(kernel='poly', nu=0.9, gamma='scale', degree=4),
+        'SVDD_poly_4_0.0001_auto': SVDD(kernel='poly', nu=0.0001, gamma='auto', degree=4),
+        'SVDD_poly_4_0.0005_auto': SVDD(kernel='poly', nu=0.0005, gamma='auto', degree=4),
+        'SVDD_poly_4_0.001_auto': SVDD(kernel='poly', nu=0.001, gamma='auto', degree=4),
+        'SVDD_poly_4_0.005_auto': SVDD(kernel='poly', nu=0.005, gamma='auto', degree=4),
+        'SVDD_poly_4_0.01_auto': SVDD(kernel='poly', nu=0.01, gamma='auto', degree=4),
+        'SVDD_poly_4_0.05_auto': SVDD(kernel='poly', nu=0.05, gamma='auto', degree=4),
+        'SVDD_poly_4_0.1_auto': SVDD(kernel='poly', nu=0.1, gamma='auto', degree=4),
+        'SVDD_poly_4_0.2_auto': SVDD(kernel='poly', nu=0.2, gamma='auto', degree=4),
+        'SVDD_poly_4_0.3_auto': SVDD(kernel='poly', nu=0.3, gamma='auto', degree=4),
+        'SVDD_poly_4_0.4_auto': SVDD(kernel='poly', nu=0.4, gamma='auto', degree=4),
+        'SVDD_poly_4_0.5_auto': SVDD(kernel='poly', nu=0.5, gamma='auto', degree=4),
+        'SVDD_poly_4_3_0.6_auto': SVDD(kernel='poly', nu=0.6, gamma='auto', degree=4),
+        'SVDD_poly_4_0.7_auto': SVDD(kernel='poly', nu=0.7, gamma='auto', degree=4),
+        'SVDD_poly_4_0.8_auto': SVDD(kernel='poly', nu=0.8, gamma='auto', degree=4),
+        'SVDD_poly_4_0.9_auto': SVDD(kernel='poly', nu=0.9, gamma='auto', degree=4)
     }
 
-    preprocessing = sys.argv[1]
+    all_one_dataset = sys.argv[1]
 
-    run(datasets, models, preprocessing)
+    all_one_preprocessing = sys.argv[2]
+
+    if all_one_dataset == 'All':
+        datasets = {
+            'ARE': pd.read_pickle('../datasets/ARE.plk'),
+            'TEN': pd.read_pickle('../datasets/TEN.plk'),
+            'TIT': pd.read_pickle('../datasets/TIT.plk')
+        }
+    else:
+        datasets = {
+            all_one_dataset: pd.read_pickle('../datasets/' + all_one_dataset + '.plk')
+        }
+
+    if all_one_preprocessing == 'All':
+        prepros = ['BoW', 'DBERTML', 'Density', 'Maalej', 'AE', 'VAE', 'MAE', 'MVAE']
+    else:
+        prepros = [all_one_preprocessing]
+
+    run(datasets, models_svdd, prepros, path_results, term_weight_list, percents, cluster_matrix, epochs, arqs,
+        operators)
+
+    print('Done!')
