@@ -504,8 +504,8 @@ def make_representation(dataset, prepro, df_int, df_out, folds, percent, vectori
             x_outlier = df_outlier
 
         else:
-            df_train, df_test = train_test_split_pipeline(df_int, percent, 'DistilBERT Multilingua', fold)
-            df_outlier = np.array(df_out['DistilBERT Multilingua'].to_list())
+            df_train, df_test = train_test_split_pipeline(df_int, percent, 'DistilBERT Multilingual', fold)
+            df_outlier = np.array(df_out['DistilBERT Multilingual'].to_list())
 
             if prepro == 'DBERTML':
                 x_train = df_train
@@ -702,8 +702,8 @@ def densities(percents, cluster_matrix, datasets_dictionary):
 
                 for fold in folds:
 
-                    df_train, df_test = train_test_split_pipeline(df_int, percent, 'DistilBERT Multilingua', fold)
-                    df_outlier = np.array(df_out['DistilBERT Multilingua'].to_list())
+                    df_train, df_test = train_test_split_pipeline(df_int, percent, 'DistilBERT Multilingual', fold)
+                    df_outlier = np.array(df_out['DistilBERT Multilingual'].to_list())
 
                     df_densities[dataset][percent][str(cluster_list)][fold] = make_density_information(cluster_list, df_train, df_test, df_outlier)
 
