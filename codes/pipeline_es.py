@@ -711,9 +711,8 @@ def densities(percents, cluster_matrix, datasets_dictionary):
 
 
 def run(datasets_dictionary, models, prepros, path_results, term_weight_list, percents, cluster_matrix, epochs, arqs,
-        operators):
-
-    df_density = densities(percents, cluster_matrix, datasets_dictionary)
+        operators, df_density):
+        
 
     for dataset in tqdm(datasets_dictionary.keys()):
         for prepro in prepros:
@@ -925,7 +924,7 @@ if __name__ == '__main__':
         datasets = {
             'ARE': pd.read_pickle('../datasets/ARE.plk'),
             'TEN': pd.read_pickle('../datasets/TEN.plk'),
-            'TIT': pd.read_pickle('../datasets/TIT.plk')
+            'TIT': pd.read_pickle('../datasets/TIN.plk')
         }
     else:
         datasets = {
@@ -934,10 +933,16 @@ if __name__ == '__main__':
 
     if all_one_preprocessing == 'All':
         prepros = ['BoW', 'DBERTML', 'Density', 'Maalej', 'AE', 'VAE', 'MAE', 'MVAE']
-    else:
+
+    else:        
         prepros = [all_one_preprocessing]
+        
+    if all_one_preprocessing == 'All' or all_one_preprocessing == 'Density' or all_one_preprocessing != 'MAE' or all_one_preprocessing != 'MVAE':
+        print('Calculating Density Information')
+        df_density = densities(percents, cluster_matrix, datasets_dictionary)
+        print('Density Information Calculated')
 
     run(datasets, models_svdd, prepros, path_results, term_weight_list, percents, cluster_matrix, epochs, arqs,
-        operators)
+        operators, df_density)
 
     print('Done!')
