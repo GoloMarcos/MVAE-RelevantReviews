@@ -6,8 +6,6 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples
 import sys
-import os
-from sklearn.model_selection import KFold
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, roc_auc_score, roc_curve
 from pathlib import Path
@@ -16,16 +14,18 @@ from sklearn.feature_extraction.text import CountVectorizer
 import nltk.stem
 from nltk import word_tokenize
 from nltk.stem import WordNetLemmatizer
-nltk.download('stopwords')
-nltk.download('punkt')
-nltk.download('wordnet')
 import tensorflow
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.layers import Dense, Input, concatenate, multiply, average, subtract, add
-from tensorflow.keras.models import Model, save_model
+from tensorflow.keras.layers import Dense, Input, concatenate, multiply, average, subtract, add, maximum, minimum
+from tensorflow.keras.models import Model
 from scikit_learn.sklearn_svdd.svm import SVDD
+import warnings
+
+nltk.download('stopwords')
+nltk.download('punkt')
+nltk.download('wordnet')
 
 
 def train_test_split_pipeline(df_int, percent, column, f1):
@@ -183,6 +183,72 @@ class MyTokenizer:
                 l2.append(token)
         l3 = [self.stemmer.stem(self.wnl.lemmatize(t)) for t in l2]
         return l3
+
+
+def multimodal_autoencoder(arq, first_input_len, second_input_len, operator):
+    first_input = Input(shape=(first_input_len,), name='first_input_encoder')
+
+    second_input = Input(shape=(second_input_len,), name='second_input_encoder')
+
+    l1 = Dense(np.max([first_input_len, second_input_len]), activation='linear')(first_input)
+    l2 = Dense(np.max([first_input_len, second_input_len]), activation='linear')(second_input)
+
+    fusion = None
+    if operator == 'concatenate':
+        fusion = concatenate([l1, l2])
+    if operator == 'multiply':
+        fusion = multiply([l1, l2])
+    if operator == 'average':
+        fusion = average([l1, l2])
+    if operator == 'subtract':
+        fusion = subtract([l1, l2])
+    if operator == 'add':
+        fusion = add([l1, l2])
+    if operator == 'max':
+        fusion = maximum([l1, l2])
+    if operator == 'min':
+        fusion = minimum([l1, l2])
+
+    if len(arq) == 3:
+        first_dense_encoder = Dense(arq[0], activation="linear")(fusion)
+
+        second_dense_encoder = Dense(arq[1], activation="linear")(first_dense_encoder)
+
+        encoded = Dense(arq[2], activation="linear")(second_dense_encoder)
+
+        first_dense_decoder = Dense(arq[1], activation="linear")(encoded)
+
+        second_dense_decoder = Dense(arq[0], activation="linear")(first_dense_decoder)
+
+        first_decoder_output = Dense(first_input_len, activation="linear")(second_dense_decoder)
+
+        second_decoder_output = Dense(second_input_len, activation="linear")(second_dense_decoder)
+
+    elif len(arq) == 2:
+        first_dense_encoder = Dense(arq[0], activation="linear")(fusion)
+
+        encoded = Dense(arq[1], activation="linear")(first_dense_encoder)
+
+        first_dense_decoder = Dense(arq[0], activation="linear")(encoded)
+
+        first_decoder_output = Dense(first_input_len, activation="linear")(first_dense_decoder)
+
+        second_decoder_output = Dense(second_input_len, activation="linear")(first_dense_decoder)
+
+    else:
+        encoded = Dense(arq[0], activation="linear")(fusion)
+
+        first_decoder_output = Dense(first_input_len, activation="linear")(encoded)
+
+        second_decoder_output = Dense(second_input_len, activation="linear")(encoded)
+
+    encoder = Model([first_input, second_input], encoded)
+
+    autoencoder = Model([first_input, second_input], [first_decoder_output, second_decoder_output])
+
+    autoencoder.compile(optimizer=tensorflow.keras.optimizers.Adam(), loss='mse')
+
+    return autoencoder, encoder
 
 
 def autoencoder(arq, input_length):
@@ -479,8 +545,8 @@ def term_weight_type(bow_type, language_tokenizer='multilingual'):
     return vectorizer
 
 
-def make_representation(dataset, prepro, df_int, df_out, folds, percent, vectorizer, cluster_list, parameter_list, df_density):
-
+def make_representation(dataset, prepro, df_int, df_out, folds, percent, vectorizer, cluster_list, parameter_list,
+                        df_density):
     representations = []
 
     for fold in folds:
@@ -610,7 +676,6 @@ def make_representation(dataset, prepro, df_int, df_out, folds, percent, vectori
 
 def make_prepro_evaluate(dataset, models, file_name, line_parameters, path, prepro, df_int, df_out, folds, percent,
                          vectorizer=CountVectorizer(), cluster_list=(), parameter_list=(), df_density=()):
-
     representations = make_representation(dataset, prepro, df_int, df_out, folds, percent, vectorizer, cluster_list,
                                           parameter_list, df_density)
 
@@ -620,10 +685,8 @@ def make_prepro_evaluate(dataset, models, file_name, line_parameters, path, prep
     collect()
 
 
-
 def preprocessing_evaluate(df_density, datasets_dictionary, dataset, prepro, models, path_results, term_weight_list,
-                                   percents, cluster_matrix, epochs, arqs, operators):
-
+                           percents, cluster_matrix, epochs, arqs, operators):
     df = datasets_dictionary[dataset]
 
     df_int = df[df.category != 'irr']
@@ -637,20 +700,23 @@ def preprocessing_evaluate(df_density, datasets_dictionary, dataset, prepro, mod
 
     for percent in percents:
         if prepro == 'DBERTML' or prepro == 'Maalej':
-            make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro, df_int, df_out, folds,
+            make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro, df_int, df_out,
+                                 folds,
                                  percent)
 
         elif prepro == 'BoW':
             for term_weight in term_weight_list:
                 file_name = dataset + '_' + prepro + '-' + term_weight
                 vectorizer = term_weight_type(term_weight)
-                make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro, df_int, df_out, folds,
+                make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro, df_int, df_out,
+                                     folds,
                                      percent, vectorizer=vectorizer)
 
         elif prepro == 'Density':
             for cluster_list in cluster_matrix:
                 line_parameters = str(cluster_list)
-                make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro, df_int, df_out, folds,
+                make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro, df_int, df_out,
+                                     folds,
                                      percent, cluster_list=cluster_list, df_density=df_density)
 
         else:
@@ -660,7 +726,8 @@ def preprocessing_evaluate(df_density, datasets_dictionary, dataset, prepro, mod
                         line_parameters = str(epoch) + '_' + str(arq)
                         parameter_list = (epoch, arq)
 
-                        make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro, df_int, df_out,
+                        make_prepro_evaluate(dataset, models, file_name, line_parameters, path_results, prepro, df_int,
+                                             df_out,
                                              folds, percent, parameter_list=parameter_list)
 
                     elif prepro == 'MAE' or prepro == 'MVAE':
@@ -680,8 +747,8 @@ def preprocessing_evaluate(df_density, datasets_dictionary, dataset, prepro, mod
     del df_out
     collect()
 
-def densities(percents, cluster_matrix, datasets_dictionary):
 
+def densities(percents, cluster_matrix, datasets_dictionary):
     df_densities = {}
     for dataset in datasets_dictionary.keys():
         df_densities[dataset] = {}
@@ -701,22 +768,23 @@ def densities(percents, cluster_matrix, datasets_dictionary):
                 df_densities[dataset][percent][str(cluster_list)] = {}
 
                 for fold in folds:
-
                     df_train, df_test = train_test_split_pipeline(df_int, percent, 'DistilBERT Multilingual', fold)
                     df_outlier = np.array(df_out['DistilBERT Multilingual'].to_list())
 
-                    df_densities[dataset][percent][str(cluster_list)][fold] = make_density_information(cluster_list, df_train, df_test, df_outlier)
+                    df_densities[dataset][percent][str(cluster_list)][fold] = make_density_information(cluster_list,
+                                                                                                       df_train,
+                                                                                                       df_test,
+                                                                                                       df_outlier)
 
     return df_densities
 
 
 def run(datasets_dictionary, models, prepros, path_results, term_weight_list, percents, cluster_matrix, epochs, arqs,
         operators, df_density):
-        
-
     for dataset in tqdm(datasets_dictionary.keys()):
         for prepro in prepros:
-            preprocessing_evaluate(df_density, datasets_dictionary, dataset, prepro, models, path_results, term_weight_list,
+            preprocessing_evaluate(df_density, datasets_dictionary, dataset, prepro, models, path_results,
+                                   term_weight_list,
                                    percents, cluster_matrix, epochs, arqs, operators)
 
 
@@ -725,7 +793,7 @@ if __name__ == '__main__':
     warnings.filterwarnings("ignore")
     print('Start')
 
-    path_results = './results/'
+    path_results = '../results/'
     percents = [3, 5, 7, 10]
     term_weight_list = ['term-frequency-IDF', 'term-frequency', 'binary']
     cluster_matrix = [[3, 6, 7, 8], [2, 3, 8, 9], [2, 3, 4, 5, 6, 7, 8, 9, 10]]
@@ -934,15 +1002,16 @@ if __name__ == '__main__':
     if all_one_preprocessing == 'All':
         prepros = ['BoW', 'DBERTML', 'Density', 'Maalej', 'AE', 'VAE', 'MAE', 'MVAE']
 
-    else:        
+    else:
         prepros = [all_one_preprocessing]
-        
+
+    df_density = ''
     if all_one_preprocessing == 'All' or all_one_preprocessing == 'Density' or all_one_preprocessing != 'MAE' or all_one_preprocessing != 'MVAE':
         print('Calculating Density Information')
-        df_density = densities(percents, cluster_matrix, datasets_dictionary)
+        df_density = densities(percents, cluster_matrix, datasets)
         print('Density Information Calculated')
 
-    run(datasets, models_svdd, prepros, path_results, term_weight_list, percents, cluster_matrix, epochs, arqs,
-        operators, df_density)
+    run(datasets, models, prepros, path_results, term_weight_list, percents, cluster_matrix, epochs, arqs, operators,
+        df_density)
 
     print('Done!')
