@@ -1,0 +1,222 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage{graphicx}
+\usepackage{lscape}
+\title{Output tables for the test of Multiple comparisons.}
+\author{}
+\date{\today}
+\begin{document}
+\begin{landscape}
+\pagestyle{empty}
+\maketitle
+\thispagestyle{empty}
+\section{Average rankings of Friedman test}
+
+
+
+Average ranks obtained by applying the Friedman procedure
+
+\begin{table}[!htp]
+\centering
+\begin{tabular}{|c|c|}\hline
+Algorithm&Ranking\\\hline
+Bow-Binary & 10\\
+AE & 7.5\\
+BoW-term-frequency-IDF & 5.625\\
+BoW-term-frequency & 9\\
+DBERTML & 7.5\\
+Density & 1.5\\
+Maalej & 3\\
+VAE & 5.375\\
+MAE & 1.625\\
+MVAE & 3.875\\
+\hline
+\end{tabular}
+\caption{Average Rankings of the algorithms}
+\end{table}
+
+Friedman statistic considering reduction performance (distributed according to chi-square with 9 degrees of freedom: 70.2.
+
+P-value computed by Friedman Test: 5.254519042097172E-11.\newline
+
+
+
+\pagebreak
+
+\section{Post hoc comparisons}
+
+Results achieved on post hoc comparisons for $\alpha = 0.05$, $\alpha = 0.10$ and adjusted p-values.
+
+\subsection{P-values for $\alpha=0.05$}
+
+\begin{table}[!htp]
+\centering\scriptsize
+\begin{tabular}{cccc}
+$i$&algorithms&$z=(R_0 - R_i)/SE$&$p$\\
+\hline45&Bow-Binary vs. Density&5.614915&0\\
+44&Bow-Binary vs. MAE&5.532343&0\\
+43&BoW-term-frequency vs. Density&4.954337&0.000001\\
+42&BoW-term-frequency vs. MAE&4.871765&0.000001\\
+41&Bow-Binary vs. Maalej&4.624048&0.000004\\
+40&Bow-Binary vs. MVAE&4.046042&0.000052\\
+39&AE vs. Density&3.96347&0.000074\\
+38&BoW-term-frequency vs. Maalej&3.96347&0.000074\\
+37&DBERTML vs. Density&3.96347&0.000074\\
+36&AE vs. MAE&3.880897&0.000104\\
+35&DBERTML vs. MAE&3.880897&0.000104\\
+34&BoW-term-frequency vs. MVAE&3.385464&0.000711\\
+33&Bow-Binary vs. VAE&3.055174&0.002249\\
+32&AE vs. Maalej&2.972602&0.002953\\
+31&DBERTML vs. Maalej&2.972602&0.002953\\
+30&Bow-Binary vs. BoW-term-frequency-IDF&2.89003&0.003852\\
+29&BoW-term-frequency-IDF vs. Density&2.724885&0.006432\\
+28&BoW-term-frequency-IDF vs. MAE&2.642313&0.008234\\
+27&Density vs. VAE&2.559741&0.010475\\
+26&VAE vs. MAE&2.477168&0.013243\\
+25&AE vs. MVAE&2.394596&0.016639\\
+24&BoW-term-frequency vs. VAE&2.394596&0.016639\\
+23&DBERTML vs. MVAE&2.394596&0.016639\\
+22&BoW-term-frequency-IDF vs. BoW-term-frequency&2.229452&0.025784\\
+21&BoW-term-frequency-IDF vs. Maalej&1.734018&0.082915\\
+20&Bow-Binary vs. AE&1.651446&0.098648\\
+19&Bow-Binary vs. DBERTML&1.651446&0.098648\\
+18&Density vs. MVAE&1.568873&0.116677\\
+17&Maalej vs. VAE&1.568873&0.116677\\
+16&MAE vs. MVAE&1.486301&0.1372\\
+15&AE vs. VAE&1.403729&0.1604\\
+14&DBERTML vs. VAE&1.403729&0.1604\\
+13&AE vs. BoW-term-frequency-IDF&1.238584&0.2155\\
+12&BoW-term-frequency-IDF vs. DBERTML&1.238584&0.2155\\
+11&BoW-term-frequency-IDF vs. MVAE&1.156012&0.247676\\
+10&AE vs. BoW-term-frequency&0.990867&0.32175\\
+9&BoW-term-frequency vs. DBERTML&0.990867&0.32175\\
+8&Density vs. Maalej&0.990867&0.32175\\
+7&VAE vs. MVAE&0.990867&0.32175\\
+6&Maalej vs. MAE&0.908295&0.363722\\
+5&Bow-Binary vs. BoW-term-frequency&0.660578&0.508883\\
+4&Maalej vs. MVAE&0.578006&0.56326\\
+3&BoW-term-frequency-IDF vs. VAE&0.165145&0.86883\\
+2&Density vs. MAE&0.082572&0.934192\\
+1&AE vs. DBERTML&0&1\\
+\hline
+\end{tabular}
+\caption{P-values Table for $\alpha=0.05$}
+\end{table}Nemenyi's procedure rejects those hypotheses that have an unadjusted p-value $\le0.001111$.
+
+\pagebreak
+
+\subsection{P-values for $\alpha=0.10$}
+
+\begin{table}[!htp]
+\centering\scriptsize
+\begin{tabular}{cccc}
+$i$&algorithms&$z=(R_0 - R_i)/SE$&$p$\\
+\hline45&Bow-Binary vs. Density&5.614915&0\\
+44&Bow-Binary vs. MAE&5.532343&0\\
+43&BoW-term-frequency vs. Density&4.954337&0.000001\\
+42&BoW-term-frequency vs. MAE&4.871765&0.000001\\
+41&Bow-Binary vs. Maalej&4.624048&0.000004\\
+40&Bow-Binary vs. MVAE&4.046042&0.000052\\
+39&AE vs. Density&3.96347&0.000074\\
+38&BoW-term-frequency vs. Maalej&3.96347&0.000074\\
+37&DBERTML vs. Density&3.96347&0.000074\\
+36&AE vs. MAE&3.880897&0.000104\\
+35&DBERTML vs. MAE&3.880897&0.000104\\
+34&BoW-term-frequency vs. MVAE&3.385464&0.000711\\
+33&Bow-Binary vs. VAE&3.055174&0.002249\\
+32&AE vs. Maalej&2.972602&0.002953\\
+31&DBERTML vs. Maalej&2.972602&0.002953\\
+30&Bow-Binary vs. BoW-term-frequency-IDF&2.89003&0.003852\\
+29&BoW-term-frequency-IDF vs. Density&2.724885&0.006432\\
+28&BoW-term-frequency-IDF vs. MAE&2.642313&0.008234\\
+27&Density vs. VAE&2.559741&0.010475\\
+26&VAE vs. MAE&2.477168&0.013243\\
+25&AE vs. MVAE&2.394596&0.016639\\
+24&BoW-term-frequency vs. VAE&2.394596&0.016639\\
+23&DBERTML vs. MVAE&2.394596&0.016639\\
+22&BoW-term-frequency-IDF vs. BoW-term-frequency&2.229452&0.025784\\
+21&BoW-term-frequency-IDF vs. Maalej&1.734018&0.082915\\
+20&Bow-Binary vs. AE&1.651446&0.098648\\
+19&Bow-Binary vs. DBERTML&1.651446&0.098648\\
+18&Density vs. MVAE&1.568873&0.116677\\
+17&Maalej vs. VAE&1.568873&0.116677\\
+16&MAE vs. MVAE&1.486301&0.1372\\
+15&AE vs. VAE&1.403729&0.1604\\
+14&DBERTML vs. VAE&1.403729&0.1604\\
+13&AE vs. BoW-term-frequency-IDF&1.238584&0.2155\\
+12&BoW-term-frequency-IDF vs. DBERTML&1.238584&0.2155\\
+11&BoW-term-frequency-IDF vs. MVAE&1.156012&0.247676\\
+10&AE vs. BoW-term-frequency&0.990867&0.32175\\
+9&BoW-term-frequency vs. DBERTML&0.990867&0.32175\\
+8&Density vs. Maalej&0.990867&0.32175\\
+7&VAE vs. MVAE&0.990867&0.32175\\
+6&Maalej vs. MAE&0.908295&0.363722\\
+5&Bow-Binary vs. BoW-term-frequency&0.660578&0.508883\\
+4&Maalej vs. MVAE&0.578006&0.56326\\
+3&BoW-term-frequency-IDF vs. VAE&0.165145&0.86883\\
+2&Density vs. MAE&0.082572&0.934192\\
+1&AE vs. DBERTML&0&1\\
+\hline
+\end{tabular}
+\caption{P-values Table for $\alpha=0.10$}
+\end{table}Nemenyi's procedure rejects those hypotheses that have an unadjusted p-value $\le0.002222$.
+
+\pagebreak
+
+\subsection{Adjusted p-values}
+
+\begin{table}[!htp]
+\centering\scriptsize
+\begin{tabular}{cccc}
+i&hypothesis&unadjusted $p$&$p_{Neme}$\\
+\hline1&Bow-Binary vs .Density&0&0.000001\\
+2&Bow-Binary vs .MAE&0&0.000001\\
+3&BoW-term-frequency vs .Density&0.000001&0.000033\\
+4&BoW-term-frequency vs .MAE&0.000001&0.00005\\
+5&Bow-Binary vs .Maalej&0.000004&0.000169\\
+6&Bow-Binary vs .MVAE&0.000052&0.002344\\
+7&AE vs .Density&0.000074&0.003324\\
+8&BoW-term-frequency vs .Maalej&0.000074&0.003324\\
+9&DBERTML vs .Density&0.000074&0.003324\\
+10&AE vs .MAE&0.000104&0.004683\\
+11&DBERTML vs .MAE&0.000104&0.004683\\
+12&BoW-term-frequency vs .MVAE&0.000711&0.031976\\
+13&Bow-Binary vs .VAE&0.002249&0.101218\\
+14&AE vs .Maalej&0.002953&0.132879\\
+15&DBERTML vs .Maalej&0.002953&0.132879\\
+16&Bow-Binary vs .BoW-term-frequency-IDF&0.003852&0.173342\\
+17&BoW-term-frequency-IDF vs .Density&0.006432&0.289457\\
+18&BoW-term-frequency-IDF vs .MAE&0.008234&0.370539\\
+19&Density vs .VAE&0.010475&0.471376\\
+20&VAE vs .MAE&0.013243&0.595932\\
+21&AE vs .MVAE&0.016639&0.748741\\
+22&BoW-term-frequency vs .VAE&0.016639&0.748741\\
+23&DBERTML vs .MVAE&0.016639&0.748741\\
+24&BoW-term-frequency-IDF vs .BoW-term-frequency&0.025784&1.160274\\
+25&BoW-term-frequency-IDF vs .Maalej&0.082915&3.731171\\
+26&Bow-Binary vs .AE&0.098648&4.439142\\
+27&Bow-Binary vs .DBERTML&0.098648&4.439142\\
+28&Density vs .MVAE&0.116677&5.250485\\
+29&Maalej vs .VAE&0.116677&5.250485\\
+30&MAE vs .MVAE&0.1372&6.173978\\
+31&AE vs .VAE&0.1604&7.217983\\
+32&DBERTML vs .VAE&0.1604&7.217983\\
+33&AE vs .BoW-term-frequency-IDF&0.2155&9.697478\\
+34&BoW-term-frequency-IDF vs .DBERTML&0.2155&9.697478\\
+35&BoW-term-frequency-IDF vs .MVAE&0.247676&11.145432\\
+36&AE vs .BoW-term-frequency&0.32175&14.478765\\
+37&BoW-term-frequency vs .DBERTML&0.32175&14.478765\\
+38&Density vs .Maalej&0.32175&14.478765\\
+39&VAE vs .MVAE&0.32175&14.478765\\
+40&Maalej vs .MAE&0.363722&16.367505\\
+41&Bow-Binary vs .BoW-term-frequency&0.508883&22.899727\\
+42&Maalej vs .MVAE&0.56326&25.346704\\
+43&BoW-term-frequency-IDF vs .VAE&0.86883&39.097359\\
+44&Density vs .MAE&0.934192&42.038624\\
+45&AE vs .DBERTML&1&45\\
+\hline
+\end{tabular}
+\caption{Adjusted $p$-values}
+\end{table}
+
+\end{landscape}
+\end{document}
